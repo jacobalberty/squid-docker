@@ -39,7 +39,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 COPY --from=builder /build/squid_0-1_amd64.deb /tmp/squid.deb
 
 RUN apt update \
- && apt -qy install libnettle6 libssl1.0 libgnutls30 /tmp/squid.deb \
+ && apt -qy install /tmp/squid.deb \
  && rm -rf /var/lib/apt/lists/*
 
 COPY ./docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
