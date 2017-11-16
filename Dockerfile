@@ -5,7 +5,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ENV SOURCEURL=http://www.squid-cache.org/Versions/v3/3.5/squid-3.5.27.tar.gz
 
 ENV builddeps="build-essential checkinstall curl devscripts libcrypto++-dev libssl1.0-dev openssl"
-ENV requires="libssl1.0,libgnutls30,openssl,libc6,libcap2,libcomerr2,libdb5.3,libecap3,libexpat1,libgcc1,libgssapi-krb5-2,libkrb5-3,libldap-2.4-2,libltdl7,libnetfilter-conntrack3,libnettle6,libpam0g,libsasl2-2,libstdc++6,libxml2,netbase,libdbi-perl"
+ENV requires="libgnutls30,openssl,libc6,libcap2,libcomerr2,libdb5.3,libecap3,libexpat1,libgcc1,libgssapi-krb5-2,libkrb5-3,libldap-2.4-2,libltdl7,libnetfilter-conntrack3,libnettle6,libpam0g,libsasl2-2,libstdc++6,libxml2,netbase,libdbi-perl"
 
 RUN echo "deb-src http://deb.debian.org/debian stretch main" > /etc/apt/sources.list.d/source.list \
  && echo "deb-src http://deb.debian.org/debian stretch-updates main" >> /etc/apt/sources.list.d/source.list \
@@ -39,7 +39,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 COPY --from=builder /build/squid_0-1_amd64.deb /tmp/squid.deb
 
 RUN apt update \
- && apt -qy install /tmp/squid.deb \
+ && apt -qy install libssl1.0 /tmp/squid.deb \
  && rm -rf /var/lib/apt/lists/*
 
 COPY ./docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
