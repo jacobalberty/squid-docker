@@ -52,7 +52,7 @@ RUN echo "deb-src http://deb.debian.org/debian stretch main" > /etc/apt/sources.
         --with-large-files \
         --enable-linux-netfilter \
         --enable-ssl --enable-ssl-crtd --with-openssl \
- && make \
+ && make -j$(awk '/^processor/{n+=1}END{print n}' /proc/cpuinfo) \
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
 
