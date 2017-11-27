@@ -14,15 +14,15 @@ ENV builddeps=" \
     openssl \
     "
 ENV requires=" \
-    libgnutls30, \
-    openssl, \
     libc6, \
     libcap2, \
     libcomerr2, \
     libdb5.3, \
+    libdbi-perl \
     libecap3, \
     libexpat1, \
     libgcc1, \
+    libgnutls30, \
     libgssapi-krb5-2, \
     libkrb5-3, \
     libldap-2.4-2, \
@@ -34,7 +34,7 @@ ENV requires=" \
     libstdc++6, \
     libxml2, \
     netbase, \
-    libdbi-perl \
+    openssl, \
     "
 
 RUN echo "deb-src http://deb.debian.org/debian stretch main" > /etc/apt/sources.list.d/source.list \
