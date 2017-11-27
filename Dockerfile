@@ -19,7 +19,7 @@ ENV requires=" \
     libcap2, \
     libcomerr2, \
     libdb5.3, \
-    libdbi-perl \
+    libdbi-perl, \
     libecap3, \
     libexpat1, \
     libgcc1, \
@@ -35,7 +35,7 @@ ENV requires=" \
     libstdc++6, \
     libxml2, \
     netbase, \
-    openssl, \
+    openssl \
     "
 
 RUN echo "deb-src http://deb.debian.org/debian stretch main" > /etc/apt/sources.list.d/source.list \
