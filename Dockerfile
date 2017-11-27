@@ -86,7 +86,7 @@ RUN echo "deb-src http://deb.debian.org/debian stretch main" > /etc/apt/sources.
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
 
-FROM debian:stretch
+FROM debian:stretch-slim
 
 label maintainer="Jacob Alberty <jacob.alberty@foundigital.com>"
 
