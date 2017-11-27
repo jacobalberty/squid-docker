@@ -2,7 +2,7 @@ FROM debian:stretch as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV SOURCEURL=http://www.squid-cache.org/Versions/v3/3.5/squid-3.5.27.tar.gz
+ENV SOURCEURL=http://www.squid-cache.org/Versions/v4/squid-4.0.21.tar.gz
 
 ENV builddeps=" \
     build-essential \
@@ -10,10 +10,11 @@ ENV builddeps=" \
     curl \
     devscripts \
     libcrypto++-dev \
-    libssl1.0-dev \
+    libssl-dev \
     openssl \
     "
 ENV requires=" \
+    libatomic1, \
     libc6, \
     libcap2, \
     libcomerr2, \
@@ -68,7 +69,7 @@ RUN echo "deb-src http://deb.debian.org/debian stretch main" > /etc/apt/sources.
         --enable-auth-basic="DB,fake,getpwnam,LDAP,NCSA,NIS,PAM,POP3,RADIUS,SASL,SMB" \
         --enable-auth-digest="file,LDAP" \
         --enable-auth-negotiate="kerberos,wrapper" \
-        --enable-auth-ntlm="fake,smb_lm" \
+        --enable-auth-ntlm="fake,SMB_LM" \
         --enable-external-acl-helpers="file_userip,kerberos_ldap_group,LDAP_group,session,SQL_session,time_quota,unix_group,wbinfo_group" \
         --enable-url-rewrite-helpers="fake" \
         --enable-eui \
@@ -95,7 +96,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 COPY --from=builder /build/squid_0-1_amd64.deb /tmp/squid.deb
 
 RUN apt update \
- && apt -qy install libssl1.0 /tmp/squid.deb \
+ && apt -qy install libssl1.1 /tmp/squid.deb \
  && rm -rf /var/lib/apt/lists/*
 
 COPY ./docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
