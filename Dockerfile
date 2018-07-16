@@ -82,13 +82,6 @@ RUN echo "deb-src http://deb.debian.org/debian stretch main" > /etc/apt/sources.
         --with-large-files \
         --enable-linux-netfilter \
         --enable-ssl --enable-ssl-crtd --with-openssl \
-<<<<<<< HEAD
- && make \
- && checkinstall -y -D --install=no --fstrans=no --requires="${requires}"
-        --pkgname="squid"
-
-FROM debian:jessie
-=======
  && make -j$(awk '/^processor/{n+=1}END{print n}' /proc/cpuinfo) \
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
@@ -98,16 +91,11 @@ FROM debian:stretch-slim
 label maintainer="Jacob Alberty <jacob.alberty@foundigital.com>"
 
 ARG DEBIAN_FRONTEND=noninteractive
->>>>>>> master
 
 COPY --from=builder /build/squid_0-1_amd64.deb /tmp/squid.deb
 
 RUN apt update \
-<<<<<<< HEAD
- && apt install /tmp/squid.deb \
-=======
  && apt -qy install libssl1.0 /tmp/squid.deb \
->>>>>>> master
  && rm -rf /var/lib/apt/lists/*
 
 COPY ./docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
