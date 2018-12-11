@@ -2,7 +2,7 @@ FROM debian:stretch as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV SOURCEURL=http://www.squid-cache.org/Versions/v4/squid-4.2.tar.gz
+ENV SOURCEURL=http://www.squid-cache.org/Versions/v4/squid-4.4.tar.gz
 
 ENV builddeps=" \
     build-essential \
