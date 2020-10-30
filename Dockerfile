@@ -1,4 +1,4 @@
-FROM debian:stretch as builder
+FROM debian:buster as builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -38,9 +38,10 @@ ENV requires=" \
     openssl \
     "
 
-RUN echo "deb-src http://deb.debian.org/debian stretch main" > /etc/apt/sources.list.d/source.list \
- && echo "deb-src http://deb.debian.org/debian stretch-updates main" >> /etc/apt/sources.list.d/source.list \
- && echo "deb-src http://security.debian.org stretch/updates main" >> /etc/apt/sources.list.d/source.list \
+RUN echo "deb-src http://deb.debian.org/debian buster main" > /etc/apt/sources.list.d/source.list \
+ && echo "deb-src http://deb.debian.org/debian buster-updates main" >> /etc/apt/sources.list.d/source.list \
+ && echo "deb-src http://security.debian.org buster/updates main" >> /etc/apt/sources.list.d/source.list \
+ && echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/source.list \
  && apt-get -qy update \
  && apt-get -qy install ${builddeps} \
  && apt-get -qy build-dep squid \
@@ -87,7 +88,7 @@ RUN echo "deb-src http://deb.debian.org/debian stretch main" > /etc/apt/sources.
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
 
-FROM debian:stretch-slim
+FROM debian:buster-slim
 
 label maintainer="Jacob Alberty <jacob.alberty@foundigital.com>"
 
