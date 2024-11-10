@@ -2,7 +2,7 @@ FROM --platform=$BUILDPLATFORM debian:bullseye AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV SOURCEURL=http://www.squid-cache.org/Versions/v4/squid-4.17.tar.gz
+ENV SOURCEURL=https://www.squid-cache.org/Versions/v6/squid-6.12.tar.gz
 
 ENV builddeps=" \
     build-essential \
@@ -69,7 +69,7 @@ RUN ./configure --prefix=/usr \
         --enable-auth-digest="file,LDAP" \
         --enable-auth-negotiate="kerberos,wrapper" \
         --enable-auth-ntlm="fake,SMB_LM" \
-        --enable-external-acl-helpers="file_userip,kerberos_ldap_group,LDAP_group,session,SQL_session,time_quota,unix_group,wbinfo_group" \
+        --enable-external-acl-helpers="file_userip,kerberos_ldap_group,LDAP_group,session,SQL_session,unix_group,wbinfo_group" \
         --enable-url-rewrite-helpers="fake" \
         --enable-eui \
         --enable-esi \
