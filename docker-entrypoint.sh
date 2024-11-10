@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-if [ -f "/var/run/squid.pid" ]; then
+if [ -f "/run/squid.pid" ]; then
   # Clean up squid pid file
-  rm -f /var/run/squid.pid
+  rm -f /run/squid.pid
 fi
 
 if [[ "$1" == "squid" ]]; then
