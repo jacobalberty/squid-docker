@@ -102,7 +102,8 @@ RUN apt update \
 COPY --from=builder /build/squid-langpack.tar.gz /tmp/squid-langpack.tar.gz
 RUN cd /usr/share/squid/errors \
   && tar -xf /tmp/squid-langpack.tar.gz \
-  && rm -rf /tmp/squid-langpack.tar.gz
+  && rm -rf /tmp/squid-langpack.tar.gz \
+  && /usr/share/squid/errors/alias-link.sh /bin/ln /bin/rm /usr/share/squid/errors /usr/share/squid/errors/aliases
 
 COPY ./docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
