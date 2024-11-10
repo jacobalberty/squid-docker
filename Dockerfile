@@ -2,7 +2,8 @@ FROM --platform=$BUILDPLATFORM debian:bullseye AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV SOURCEURL=http://www.squid-cache.org/Versions/v4/squid-4.17.tar.gz
+ENV SOURCEURL=https://www.squid-cache.org/Versions/v6/squid-6.12.tar.gz
+ENV LANGPACKURL=https://www.squid-cache.org/Versions/langpack/squid-langpack-20240307.tar.gz
 
 ENV builddeps=" \
     build-essential \
@@ -45,6 +46,7 @@ RUN echo "deb-src http://deb.debian.org/debian bullseye main" > /etc/apt/sources
 
 WORKDIR /build
 RUN curl -o /build/squid-source.tar.gz ${SOURCEURL} \
+ && curl -o /build/squid-langpack.tar.gz ${LANGPACKURL} \
  && tar --strip=1 -xf squid-source.tar.gz
 
 RUN ./configure --prefix=/usr \
@@ -69,7 +71,7 @@ RUN ./configure --prefix=/usr \
         --enable-auth-digest="file,LDAP" \
         --enable-auth-negotiate="kerberos,wrapper" \
         --enable-auth-ntlm="fake,SMB_LM" \
-        --enable-external-acl-helpers="file_userip,kerberos_ldap_group,LDAP_group,session,SQL_session,time_quota,unix_group,wbinfo_group" \
+        --enable-external-acl-helpers="file_userip,kerberos_ldap_group,LDAP_group,session,SQL_session,unix_group,wbinfo_group" \
         --enable-url-rewrite-helpers="fake" \
         --enable-eui \
         --enable-esi \
@@ -95,6 +97,13 @@ COPY --from=builder /build/squid_0-1_amd64.deb /tmp/squid.deb
 RUN apt update \
  && apt -qy install libssl1.1 /tmp/squid.deb \
  && rm -rf /var/lib/apt/lists/*
+
+# Install language pack
+COPY --from=builder /build/squid-langpack.tar.gz /tmp/squid-langpack.tar.gz
+RUN cd /usr/share/squid/errors \
+  && tar -xf /tmp/squid-langpack.tar.gz \
+  && rm -rf /tmp/squid-langpack.tar.gz \
+  && /usr/share/squid/errors/alias-link.sh /bin/ln /bin/rm /usr/share/squid/errors /usr/share/squid/errors/aliases
 
 COPY ./docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
