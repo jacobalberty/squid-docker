@@ -1,8 +1,8 @@
-FROM debian:buster as builder
+FROM debian:buster AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV SOURCEURL=http://www.squid-cache.org/Versions/v4/squid-4.15.tar.gz
+ENV SOURCEURL=http://www.squid-cache.org/Versions/v4/squid-4.17.tar.gz
 
 ENV builddeps=" \
     build-essential \
