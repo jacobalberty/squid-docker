@@ -1,8 +1,8 @@
-FROM debian:buster as builder
+FROM --platform=$BUILDPLATFORM debian:bullseye AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV SOURCEURL=http://www.squid-cache.org/Versions/v4/squid-4.15.tar.gz
+ENV SOURCEURL=http://www.squid-cache.org/Versions/v4/squid-4.17.tar.gz
 
 ENV builddeps=" \
     build-essential \
@@ -17,19 +17,17 @@ ENV requires=" \
     libatomic1, \
     libc6, \
     libcap2, \
-    libcomerr2, \
     libdb5.3, \
     libdbi-perl, \
     libecap3, \
     libexpat1, \
-    libgcc1, \
     libgnutls30, \
     libgssapi-krb5-2, \
     libkrb5-3, \
     libldap-2.4-2, \
     libltdl7, \
     libnetfilter-conntrack3, \
-    libnettle6, \
+    libnettle8, \
     libpam0g, \
     libsasl2-2, \
     libstdc++6, \
@@ -38,18 +36,18 @@ ENV requires=" \
     openssl \
     "
 
-RUN echo "deb-src http://deb.debian.org/debian buster main" > /etc/apt/sources.list.d/source.list \
- && echo "deb-src http://deb.debian.org/debian buster-updates main" >> /etc/apt/sources.list.d/source.list \
- && echo "deb-src http://security.debian.org buster/updates main" >> /etc/apt/sources.list.d/source.list \
- && echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list.d/source.list \
+RUN echo "deb-src http://deb.debian.org/debian bullseye main" > /etc/apt/sources.list.d/source.list \
+ && echo "deb-src http://deb.debian.org/debian bullseye-updates main" >> /etc/apt/sources.list.d/source.list \
  && apt-get -qy update \
  && apt-get -qy install ${builddeps} \
  && apt-get -qy build-dep squid \
- && mkdir /build \
- && curl -o /build/squid-source.tar.gz ${SOURCEURL} \
- && cd /build \
- && tar --strip=1 -xf squid-source.tar.gz \
- && ./configure --prefix=/usr \
+ && mkdir /build
+
+WORKDIR /build
+RUN curl -o /build/squid-source.tar.gz ${SOURCEURL} \
+ && tar --strip=1 -xf squid-source.tar.gz
+
+RUN ./configure --prefix=/usr \
         --localstatedir=/var \
         --libexecdir=/usr/lib/squid \
         --datadir=/usr/share/squid \
@@ -88,9 +86,7 @@ RUN echo "deb-src http://deb.debian.org/debian buster main" > /etc/apt/sources.l
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
 
-FROM debian:buster-slim
-
-label maintainer="Jacob Alberty <jacob.alberty@foundigital.com>"
+FROM --platform=$BUILDPLATFORM debian:bullseye-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
