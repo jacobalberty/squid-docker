@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM debian:bullseye AS builder
+FROM --platform=$BUILDPLATFORM debian:bookworm AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -25,7 +25,7 @@ ENV requires=" \
     libgnutls30, \
     libgssapi-krb5-2, \
     libkrb5-3, \
-    libldap-2.4-2, \
+    libldap-2.5-0, \
     libltdl7, \
     libnetfilter-conntrack3, \
     libnettle8, \
@@ -37,8 +37,8 @@ ENV requires=" \
     openssl \
     "
 
-RUN echo "deb-src http://deb.debian.org/debian bullseye main" > /etc/apt/sources.list.d/source.list \
- && echo "deb-src http://deb.debian.org/debian bullseye-updates main" >> /etc/apt/sources.list.d/source.list \
+RUN echo "deb-src [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm main" > /etc/apt/sources.list.d/source.list \
+ && echo "deb-src [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm-updates main" >> /etc/apt/sources.list.d/source.list \
  && apt-get -qy update \
  && apt-get -qy install ${builddeps} \
  && apt-get -qy build-dep squid \
@@ -50,13 +50,14 @@ RUN curl -o /build/squid-source.tar.gz ${SOURCEURL} \
  && tar --strip=1 -xf squid-source.tar.gz
 
 RUN ./configure --prefix=/usr \
+        --with-build-environment=default \
         --localstatedir=/var \
         --libexecdir=/usr/lib/squid \
         --datadir=/usr/share/squid \
         --sysconfdir=/etc/squid \
         --with-default-user=proxy \
         --with-logdir=/var/log/squid \
-        --with-pidfile=/var/run/squid.pid \
+        --with-pidfile=/run/squid.pid \
         --mandir=/usr/share/man \
         --enable-inline \
         --disable-arch-native \
@@ -67,11 +68,13 @@ RUN ./configure --prefix=/usr \
         --enable-cache-digests \
         --enable-icap-client \
         --enable-follow-x-forwarded-for \
-        --enable-auth-basic="DB,fake,getpwnam,LDAP,NCSA,NIS,PAM,POP3,RADIUS,SASL,SMB" \
+        --enable-auth-basic="DB,fake,getpwnam,LDAP,NCSA,PAM,POP3,RADIUS,SASL,SMB" \
         --enable-auth-digest="file,LDAP" \
         --enable-auth-negotiate="kerberos,wrapper" \
         --enable-auth-ntlm="fake,SMB_LM" \
-        --enable-external-acl-helpers="file_userip,kerberos_ldap_group,LDAP_group,session,SQL_session,unix_group,wbinfo_group" \
+        --enable-external-acl-helpers="file_userip,kerberos_ldap_group,LDAP_group,session,SQL_session,time_quota,unix_group,wbinfo_group" \
+        --enable-security-cert-validators="fake" \
+        --enable-storeid-rewrite-helpers="file" \
         --enable-url-rewrite-helpers="fake" \
         --enable-eui \
         --enable-esi \
@@ -88,14 +91,14 @@ RUN ./configure --prefix=/usr \
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
 
-FROM --platform=$BUILDPLATFORM debian:bullseye-slim
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 COPY --from=builder /build/squid_0-1_amd64.deb /tmp/squid.deb
 
 RUN apt update \
- && apt -qy install libssl1.1 /tmp/squid.deb \
+ && apt -qy install libssl3 /tmp/squid.deb \
  && rm -rf /var/lib/apt/lists/*
 
 # Install language pack
