@@ -1,4 +1,4 @@
-FROM debian:bullseye AS builder
+FROM --platform=$BUILDPLATFORM debian:bullseye AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -86,7 +86,7 @@ RUN ./configure --prefix=/usr \
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
 
-FROM debian:bullseye-slim
+FROM --platform=$BUILDPLATFORM debian:bullseye-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
