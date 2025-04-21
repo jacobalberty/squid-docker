@@ -2,7 +2,7 @@ FROM --platform=$BUILDPLATFORM debian:bookworm AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV SOURCEURL=https://www.squid-cache.org/Versions/v6/squid-6.12.tar.gz
+ENV SOURCEURL=https://github.com/squid-cache/squid/archive/refs/tags/SQUID_6_14.tar.gz
 ENV LANGPACKURL=https://www.squid-cache.org/Versions/langpack/squid-langpack-20240307.tar.gz
 
 ENV builddeps=" \
@@ -45,9 +45,11 @@ RUN echo "deb-src [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] htt
  && mkdir /build
 
 WORKDIR /build
-RUN curl -o /build/squid-source.tar.gz ${SOURCEURL} \
- && curl -o /build/squid-langpack.tar.gz ${LANGPACKURL} \
+RUN curl -L -o /build/squid-source.tar.gz ${SOURCEURL} \
+ && curl -L -o /build/squid-langpack.tar.gz ${LANGPACKURL} \
  && tar --strip=1 -xf squid-source.tar.gz
+
+RUN autoreconf --install --force
 
 RUN ./configure --prefix=/usr \
         --with-build-environment=default \
