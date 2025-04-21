@@ -2,7 +2,7 @@ FROM --platform=$BUILDPLATFORM debian:bookworm AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV SOURCEURL=https://www.squid-cache.org/Versions/v6/squid-6.12.tar.gz
+ENV SOURCEURL=https://github.com/squid-cache/squid/archive/refs/tags/SQUID_6_13.tar.gz
 ENV LANGPACKURL=https://www.squid-cache.org/Versions/langpack/squid-langpack-20240307.tar.gz
 
 ENV builddeps=" \
