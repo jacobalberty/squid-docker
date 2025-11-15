@@ -100,7 +100,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 COPY --from=builder /build/squid_0-1_amd64.deb /tmp/squid.deb
 
 RUN apt update \
- && apt -qy install libssl3 /tmp/squid.deb \
+ && apt -qy install ca-certificates libssl3 /tmp/squid.deb \
  && rm -rf /var/lib/apt/lists/*
 
 # Install language pack
