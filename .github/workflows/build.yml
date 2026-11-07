@@ -1,10 +1,13 @@
 name: build
 
 # Checks that the image builds on every pull request. No image is pushed;
-# release.yml builds and publishes images on merge to main. Layers are cached
-# in a registry tag shared with release.yml, so the release build after a
-# merge reuses what the pull request built. Pull requests from forks have no
-# registry write access: they read the cache but do not update it.
+# release.yml builds and publishes images on merge to main.
+#
+# Layers are cached in GHCR tags so more than the last run is reused: each
+# pull request writes buildcache-pr-<N> and reads that plus the main cache
+# (buildcache), and release.yml reads the merged PR's cache. Pull requests
+# from forks can read but not write; cache-cleanup.yml deletes a PR's tag
+# when it closes.
 
 on:
   pull_request:
@@ -19,9 +22,13 @@ permissions:
   packages: write
 
 env:
-  CACHE_REF: ghcr.io/${{ github.repository }}:buildcache
-  # False for pull requests from forks, whose token cannot write packages.
-  CAN_WRITE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+  # Cache written by release.yml on main; every build reads it.
+  CACHE_MAIN: ghcr.io/${{ github.repository }}:buildcache
+  # This pull request's own cache, reused by each push to it and by the
+  # release build after it merges. Empty for manual runs, which only read.
+  CACHE_PR: ghcr.io/${{ github.repository }}:buildcache-pr-${{ github.event.pull_request.number }}
+  # False outside pull requests and for forks, whose token cannot write packages.
+  CAN_WRITE: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
 
 jobs:
   build:
@@ -50,5 +57,7 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: false
-          cache-from: type=registry,ref=${{ env.CACHE_REF }}
-          cache-to: ${{ env.CAN_WRITE == 'true' && format('type=registry,ref={0},mode=max,image-manifest=true,oci-mediatypes=true', env.CACHE_REF) || '' }}
+          cache-from: |
+            type=registry,ref=${{ env.CACHE_PR }}
+            type=registry,ref=${{ env.CACHE_MAIN }}
+          cache-to: ${{ env.CAN_WRITE == 'true' && format('type=registry,ref={0},mode=max,image-manifest=true,oci-mediatypes=true', env.CACHE_PR) || '' }}
