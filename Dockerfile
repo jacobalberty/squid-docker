@@ -1,4 +1,4 @@
-FROM debian:bookworm AS builder
+FROM debian:trixie AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -24,27 +24,29 @@ ENV requires=" \
     libatomic1, \
     libc6, \
     libcap2, \
-    libdb5.3, \
+    libdb5.3t64, \
     libdbi-perl, \
     libecap3, \
     libexpat1, \
-    libgnutls30, \
+    libgnutls30t64, \
     libgssapi-krb5-2, \
     libkrb5-3, \
-    libldap-2.5-0, \
+    libldap2, \
     libltdl7, \
     libnetfilter-conntrack3, \
-    libnettle8, \
+    libnettle8t64, \
     libpam0g, \
     libsasl2-2, \
     libstdc++6, \
+    libtdb1, \
     libxml2, \
     netbase, \
     openssl \
     "
 
-RUN echo "deb-src [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm main" > /etc/apt/sources.list.d/source.list \
- && echo "deb-src [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm-updates main" >> /etc/apt/sources.list.d/source.list \
+# Trixie ships its apt sources in deb822 format; turn on source packages so
+# build-dep can resolve Squid's build dependencies.
+RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/debian.sources \
  && apt-get -qy update \
  && apt-get -qy install ${builddeps} \
  && apt-get -qy build-dep squid \
@@ -96,19 +98,20 @@ RUN CFLAGS="-O2" CXXFLAGS="-O2" ./configure --prefix=/usr \
         --with-filedescriptors=65536 \
         --with-large-files \
         --enable-linux-netfilter \
+        --disable-strict-error-checking \
         --enable-ssl --enable-ssl-crtd --with-openssl \
  && make -j$(nproc) \
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 COPY --from=builder /build/squid_0-1_*.deb /tmp/squid.deb
 
 RUN apt update \
- && apt -qy install ca-certificates libssl3 /tmp/squid.deb \
+ && apt -qy install ca-certificates libssl3t64 /tmp/squid.deb \
  && rm -rf /var/lib/apt/lists/*
 
 # Install language pack
