@@ -6,7 +6,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # v<SQUID_VERSION> with the underscore as a dot (6_14 -> v6.14), then
 # v6.14-N for later image changes. Upstream tags are SQUID_<major>_<minor>.
 # renovate: datasource=github-tags depName=squid-cache/squid versioning=regex:^(?<major>\d+)_(?<minor>\d+)$ extractVersion=^SQUID_(?<version>\d+_\d+)$
-ARG SQUID_VERSION=6_14
+ARG SQUID_VERSION=7_8
 
 ENV SOURCEURL=https://github.com/squid-cache/squid/archive/refs/tags/SQUID_${SQUID_VERSION}.tar.gz
 ENV LANGPACKURL=https://www.squid-cache.org/Versions/langpack/squid-langpack-20240307.tar.gz
@@ -27,7 +27,6 @@ ENV requires=" \
     libdb5.3t64, \
     libdbi-perl, \
     libecap3, \
-    libexpat1, \
     libgnutls30t64, \
     libgssapi-krb5-2, \
     libkrb5-3, \
@@ -38,8 +37,10 @@ ENV requires=" \
     libpam0g, \
     libsasl2-2, \
     libstdc++6, \
+    libtimedate-perl, \
+    liburi-perl, \
+    libcrypt-openssl-x509-perl, \
     libtdb1, \
-    libxml2, \
     netbase, \
     openssl \
     "
@@ -80,16 +81,17 @@ RUN CFLAGS="-O2" CXXFLAGS="-O2" ./configure --prefix=/usr \
         --enable-cache-digests \
         --enable-icap-client \
         --enable-follow-x-forwarded-for \
+        --enable-forw-via-db \
+        --enable-x-accelerator-vary \
         --enable-auth-basic="DB,fake,getpwnam,LDAP,NCSA,PAM,POP3,RADIUS,SASL,SMB" \
-        --enable-auth-digest="file,LDAP" \
+        --enable-auth-digest="file,LDAP,eDirectory" \
         --enable-auth-negotiate="kerberos,wrapper" \
-        --enable-auth-ntlm="fake,SMB_LM" \
-        --enable-external-acl-helpers="file_userip,kerberos_ldap_group,LDAP_group,session,SQL_session,time_quota,unix_group,wbinfo_group" \
+        --enable-auth-ntlm="fake" \
+        --enable-external-acl-helpers="delayer,eDirectory_userip,file_userip,kerberos_ldap_group,kerberos_sid_group,LDAP_group,session,SQL_session,time_quota,unix_group,wbinfo_group" \
         --enable-security-cert-validators="fake" \
         --enable-storeid-rewrite-helpers="file" \
-        --enable-url-rewrite-helpers="fake" \
+        --enable-url-rewrite-helpers="fake,LFS" \
         --enable-eui \
-        --enable-esi \
         --enable-icmp \
         --enable-zph-qos \
         --enable-ecap \
@@ -98,8 +100,7 @@ RUN CFLAGS="-O2" CXXFLAGS="-O2" ./configure --prefix=/usr \
         --with-filedescriptors=65536 \
         --with-large-files \
         --enable-linux-netfilter \
-        --disable-strict-error-checking \
-        --enable-ssl --enable-ssl-crtd --with-openssl \
+        --enable-ssl-crtd --with-openssl \
  && make -j$(nproc) \
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
