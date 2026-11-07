@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:pinDigests",
+    "customManagers:dockerfileVersions"
+  ],
+  "dependencyDashboard": true,
+  "labels": [
+    "dependencies"
+  ],
+  "packageRules": [
+    {
+      "description": "Label Squid bumps so they get their own section in the release notes (.github/release.yml).",
+      "matchPackageNames": [
+        "squid-cache/squid"
+      ],
+      "addLabels": [
+        "squid"
+      ]
+    },
+    {
+      "description": "Debian major upgrades change the runtime package names in the Dockerfile's requires list; review those by hand.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "debian"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Group GitHub Actions bumps into one PR labelled ci; they never change the image.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github actions",
+      "labels": [
+        "ci"
+      ]
+    }
+  ]
+}
