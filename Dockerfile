@@ -5,7 +5,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # SQUID_VERSION is the base of the image version: releases are tagged
 # v<SQUID_VERSION> with the underscore as a dot (6_14 -> v6.14), then
 # v6.14-N for later image changes. Upstream tags are SQUID_<major>_<minor>.
-# renovate: datasource=github-tags depName=squid-cache/squid extractVersion=^SQUID_(?<version>\d+_\d+)$ versioning=regex:^(?<major>\d+)_(?<minor>\d+)$
+# renovate: datasource=github-tags depName=squid-cache/squid versioning=regex:^(?<major>\d+)_(?<minor>\d+)$ extractVersion=^SQUID_(?<version>\d+_\d+)$
 ARG SQUID_VERSION=6_14
 
 ENV SOURCEURL=https://github.com/squid-cache/squid/archive/refs/tags/SQUID_${SQUID_VERSION}.tar.gz
