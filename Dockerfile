@@ -1,4 +1,4 @@
-FROM debian:bookworm AS builder
+FROM debian:bookworm@sha256:268fb24c39bca92d326dd83ea3abebe4a3f7751c804ffef23bb6d857dd343ff8 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -99,7 +99,7 @@ RUN ./configure --prefix=/usr \
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
 
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc
 
 ARG DEBIAN_FRONTEND=noninteractive
 
