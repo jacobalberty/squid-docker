@@ -97,7 +97,6 @@ RUN CFLAGS="-O2" CXXFLAGS="-O2" ./configure --prefix=/usr \
         --with-filedescriptors=65536 \
         --with-large-files \
         --enable-linux-netfilter \
-        --disable-strict-error-checking \
         --enable-ssl-crtd --with-openssl \
  && make -j$(nproc) \
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
