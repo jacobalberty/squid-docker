@@ -37,6 +37,9 @@ ENV requires=" \
     libpam0g, \
     libsasl2-2, \
     libstdc++6, \
+    libtimedate-perl, \
+    liburi-perl, \
+    libcrypt-openssl-x509-perl, \
     libtdb1, \
     netbase, \
     openssl \
