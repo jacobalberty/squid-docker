@@ -1,0 +1,36 @@
+name: cache-cleanup
+
+# Deletes a pull request's layer caches (buildcache-pr-<N>-<arch>, written by
+# build.yml) from GHCR once the PR closes. Best effort: if the token cannot
+# delete package versions the step only warns, and the tag is left behind.
+
+on:
+  pull_request:
+    types:
+      - closed
+
+permissions:
+  packages: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete PR cache
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          PACKAGE: ${{ github.event.repository.name }}
+          PREFIX: buildcache-pr-${{ github.event.pull_request.number }}-
+        run: |
+          base="users/${OWNER}/packages/container/${PACKAGE}/versions"
+          # One version per matching tag (amd64, arm64).
+          ids="$(gh api --paginate "${base}" --jq ".[] | select(any(.metadata.container.tags[]; startswith(\"${PREFIX}\"))) | .id")" || true
+          if [ -z "${ids}" ]; then
+            echo "No ${PREFIX}* versions to delete."
+            exit 0
+          fi
+          for id in ${ids}; do
+            gh api -X DELETE "${base}/${id}" && echo "Deleted version ${id}." ||
+              echo "::warning::Could not delete version ${id} (${PREFIX}*); remove it from the package page."
+          done

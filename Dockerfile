@@ -57,7 +57,9 @@ RUN curl -L -o /build/squid-source.tar.gz ${SOURCEURL} \
 
 RUN autoreconf --install --force
 
-RUN ./configure --prefix=/usr \
+# -O2 without the -g configure would add: no debug info is shipped, so
+# skip generating it (faster compile and link, smaller image).
+RUN CFLAGS="-O2" CXXFLAGS="-O2" ./configure --prefix=/usr \
         --with-build-environment=default \
         --localstatedir=/var \
         --libexecdir=/usr/lib/squid \
@@ -95,7 +97,7 @@ RUN ./configure --prefix=/usr \
         --with-large-files \
         --enable-linux-netfilter \
         --enable-ssl --enable-ssl-crtd --with-openssl \
- && make -j$(awk '/^processor/{n+=1}END{print n}' /proc/cpuinfo) \
+ && make -j$(nproc) \
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
 

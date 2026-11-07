@@ -6,8 +6,9 @@ name: release
 #     skips docs/CI-only changes.
 #   - a tag pushed or a release published by hand: must match SQUID_VERSION
 #     in that commit's Dockerfile, or the run fails before building.
-# Then it builds and pushes the image to GHCR, signs it, and creates the
-# GitHub release with a component-version changelog.
+# Then it builds each platform on a native runner, merges them into one
+# multi-arch image on GHCR, signs it, and creates the GitHub release with a
+# component-version changelog.
 
 on:
   push:
@@ -31,6 +32,10 @@ permissions:
 env:
   REGISTRY: ghcr.io
   DOCKER_IMAGE: ghcr.io/${{ github.repository }}
+  # Main's layer cache (suffixed -<arch>). Only this workflow writes it, so
+  # pull request builds cannot evict it; see build.yml for the per-PR caches
+  # it also reads.
+  CACHE_MAIN: ghcr.io/${{ github.repository }}:buildcache
 
 jobs:
   version:
@@ -43,6 +48,7 @@ jobs:
       squid_version: ${{ steps.compute.outputs.squid_version }}
       is_latest: ${{ steps.compute.outputs.is_latest }}
       sha: ${{ steps.compute.outputs.sha }}
+      pr: ${{ steps.pr.outputs.number }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -58,10 +64,96 @@ jobs:
           .github/scripts/compute-version.sh "${MANUAL_TAG}"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Find merged pull request
+        id: pr
+        if: steps.compute.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Empty for tags pushed by hand or commits pushed straight to main.
+          pr="$(gh api "repos/${GITHUB_REPOSITORY}/commits/$(git rev-parse HEAD)/pulls" --jq '.[0].number // empty' || true)"
+          echo "number=${pr}" >> "$GITHUB_OUTPUT"
+          echo "PR: ${pr:-none}"
+
   build:
-    name: Build and push image
+    name: Build ${{ matrix.arch }}
     needs: version
     if: needs.version.outputs.release == 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log into registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Created time
+        id: created
+        run: echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      # Pushed by digest only; the merge job gives the per-platform images
+      # their tags.
+      - name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.DOCKER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: |
+            type=registry,ref=${{ env.CACHE_MAIN }}-pr-${{ needs.version.outputs.pr }}-${{ matrix.arch }}
+            type=registry,ref=${{ env.CACHE_MAIN }}-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ env.CACHE_MAIN }}-${{ matrix.arch }},mode=max,image-manifest=true,oci-mediatypes=true
+          labels: |
+            org.opencontainers.image.title=${{ github.event.repository.name }}
+            org.opencontainers.image.description=${{ github.event.repository.description }}
+            org.opencontainers.image.url=${{ github.event.repository.html_url }}
+            org.opencontainers.image.source=${{ github.event.repository.clone_url }}
+            org.opencontainers.image.version=${{ needs.version.outputs.tag }}
+            org.opencontainers.image.created=${{ steps.created.outputs.created }}
+            org.opencontainers.image.revision=${{ needs.version.outputs.sha }}
+            org.opencontainers.image.licenses=${{ github.event.repository.license.spdx_id }}
+
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.docker_build.outputs.digest }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/digests"
+          touch "${RUNNER_TEMP}/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Publish multi-arch image
+    needs: [version, build]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -69,10 +161,12 @@ jobs:
       # Keyless cosign signing (sigstore/fulcio identity challenge).
       id-token: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - name: Download digests
+        uses: actions/download-artifact@v8
         with:
-          ref: ${{ needs.version.outputs.sha }}
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
 
       - name: Image tags
         id: tags
@@ -87,14 +181,10 @@ jobs:
             tags="${tags},${DOCKER_IMAGE}:${major},${DOCKER_IMAGE}:latest"
           fi
           echo "tags=${tags}" >> "$GITHUB_OUTPUT"
-          echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
           echo "${tags}"
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v4.1.3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -106,35 +196,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        id: docker_build
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          labels: |
-            org.opencontainers.image.title=${{ github.event.repository.name }}
-            org.opencontainers.image.description=${{ github.event.repository.description }}
-            org.opencontainers.image.url=${{ github.event.repository.html_url }}
-            org.opencontainers.image.source=${{ github.event.repository.clone_url }}
-            org.opencontainers.image.version=${{ needs.version.outputs.tag }}
-            org.opencontainers.image.created=${{ steps.tags.outputs.created }}
-            org.opencontainers.image.revision=${{ needs.version.outputs.sha }}
-            org.opencontainers.image.licenses=${{ github.event.repository.license.spdx_id }}
+      - name: Create multi-arch manifest
+        id: manifest
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          tag_args=()
+          for t in ${TAGS//,/ }; do tag_args+=(-t "${t}"); done
+          # shellcheck disable=SC2046 # one digest per file, no spaces
+          docker buildx imagetools create "${tag_args[@]}" \
+            $(printf "${DOCKER_IMAGE}@sha256:%s " *)
+          first="${TAGS%%,*}"
+          digest="$(docker buildx imagetools inspect "${first}" --format '{{json .Manifest}}' | jq -r .digest)"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "${first}@${digest}"
 
       - name: Sign the published image
         env:
           TAGS: ${{ steps.tags.outputs.tags }}
-          DIGEST: ${{ steps.docker_build.outputs.digest }}
-        run: echo "${TAGS//,/$'\n'}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+        run: echo "${TAGS//,/$'\n'}" | xargs -I {} cosign sign --yes {}@"${DIGEST}"
 
   release:
     name: Create GitHub release
-    needs: [version, build]
+    needs: [version, merge]
     runs-on: ubuntu-latest
     permissions:
       contents: write
