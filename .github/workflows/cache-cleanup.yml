@@ -1,6 +1,6 @@
 name: cache-cleanup
 
-# Deletes a pull request's layer cache (buildcache-pr-<N>, written by
+# Deletes a pull request's layer caches (buildcache-pr-<N>-<arch>, written by
 # build.yml) from GHCR once the PR closes. Best effort: if the token cannot
 # delete package versions the step only warns, and the tag is left behind.
 
@@ -21,13 +21,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           OWNER: ${{ github.repository_owner }}
           PACKAGE: ${{ github.event.repository.name }}
-          TAG: buildcache-pr-${{ github.event.pull_request.number }}
+          PREFIX: buildcache-pr-${{ github.event.pull_request.number }}-
         run: |
           base="users/${OWNER}/packages/container/${PACKAGE}/versions"
-          id="$(gh api --paginate "${base}" --jq ".[] | select(.metadata.container.tags | index(\"${TAG}\")) | .id" | head -n1)" || true
-          if [ -z "${id}" ]; then
-            echo "No ${TAG} version to delete."
+          # One version per matching tag (amd64, arm64).
+          ids="$(gh api --paginate "${base}" --jq ".[] | select(any(.metadata.container.tags[]; startswith(\"${PREFIX}\"))) | .id")" || true
+          if [ -z "${ids}" ]; then
+            echo "No ${PREFIX}* versions to delete."
             exit 0
           fi
-          gh api -X DELETE "${base}/${id}" && echo "Deleted ${TAG} (version ${id})." ||
-            echo "::warning::Could not delete ${TAG}; remove it from the package page."
+          for id in ${ids}; do
+            gh api -X DELETE "${base}/${id}" && echo "Deleted version ${id}." ||
+              echo "::warning::Could not delete version ${id} (${PREFIX}*); remove it from the package page."
+          done
