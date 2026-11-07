@@ -1,0 +1,176 @@
+name: release
+
+# Releases the image. Versions follow Squid (see .github/scripts/compute-version.sh):
+#   - push to main: tags v<SQUID_VERSION> (v6.14) for a new Squid version, or
+#     v<SQUID_VERSION>-N (v6.14-1) when anything else in the image changed;
+#     skips docs/CI-only changes.
+#   - a tag pushed or a release published by hand: must match SQUID_VERSION
+#     in that commit's Dockerfile, or the run fails before building.
+# Then it builds and pushes the image to GHCR, signs it, and creates the
+# GitHub release with a component-version changelog.
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  release:
+    types:
+      - published
+
+concurrency:
+  # Pushes to main run one at a time; a pending run may be replaced by a
+  # newer one, which then releases both changes together.
+  group: release-${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'main' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  DOCKER_IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.compute.outputs.release }}
+      tag: ${{ steps.compute.outputs.tag }}
+      previous_tag: ${{ steps.compute.outputs.previous_tag }}
+      squid_version: ${{ steps.compute.outputs.squid_version }}
+      is_latest: ${{ steps.compute.outputs.is_latest }}
+      sha: ${{ steps.compute.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Compute version
+        id: compute
+        env:
+          MANUAL_TAG: ${{ github.event.release.tag_name || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+        run: |
+          .github/scripts/compute-version.sh "${MANUAL_TAG}"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and push image
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      # Keyless cosign signing (sigstore/fulcio identity challenge).
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - name: Image tags
+        id: tags
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+          IS_LATEST: ${{ needs.version.outputs.is_latest }}
+          SHA: ${{ needs.version.outputs.sha }}
+        run: |
+          tags="${DOCKER_IMAGE}:${TAG},${DOCKER_IMAGE}:sha-${SHA::8}"
+          if [ "${IS_LATEST}" = true ]; then
+            major="${TAG%%.*}"
+            tags="${tags},${DOCKER_IMAGE}:${major},${DOCKER_IMAGE}:latest"
+          fi
+          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
+          echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+          echo "${tags}"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log into registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.title=${{ github.event.repository.name }}
+            org.opencontainers.image.description=${{ github.event.repository.description }}
+            org.opencontainers.image.url=${{ github.event.repository.html_url }}
+            org.opencontainers.image.source=${{ github.event.repository.clone_url }}
+            org.opencontainers.image.version=${{ needs.version.outputs.tag }}
+            org.opencontainers.image.created=${{ steps.tags.outputs.created }}
+            org.opencontainers.image.revision=${{ needs.version.outputs.sha }}
+            org.opencontainers.image.licenses=${{ github.event.repository.license.spdx_id }}
+
+      - name: Sign the published image
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+          DIGEST: ${{ steps.docker_build.outputs.digest }}
+        run: echo "${TAGS//,/$'\n'}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+  release:
+    name: Create GitHub release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.version.outputs.tag }}
+      PREV: ${{ needs.version.outputs.previous_tag }}
+      SHA: ${{ needs.version.outputs.sha }}
+      IS_LATEST: ${{ needs.version.outputs.is_latest }}
+      DOCKER_IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.version.outputs.sha }}
+
+      - name: Build release notes
+        run: |
+          .github/scripts/release-notes.sh "${TAG}" "${SHA}" "${PREV}" > release-notes.md
+          args=(-f "tag_name=${TAG}" -f "target_commitish=${SHA}")
+          [ -z "${PREV}" ] || args+=(-f "previous_tag_name=${PREV}")
+          gh api "repos/${GH_REPO}/releases/generate-notes" "${args[@]}" --jq .body >> release-notes.md
+          cat release-notes.md
+
+      - name: Create or update release
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            # Published by hand: fill in the notes only if they were left empty.
+            if [ -z "$(gh release view "${TAG}" --json body --jq .body)" ]; then
+              gh release edit "${TAG}" --notes-file release-notes.md
+            else
+              echo "Release ${TAG} already has notes; leaving them."
+            fi
+          else
+            gh release create "${TAG}" --target "${SHA}" --title "${TAG}" \
+              --notes-file release-notes.md "--latest=${IS_LATEST}"
+          fi

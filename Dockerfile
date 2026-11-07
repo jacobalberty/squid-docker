@@ -1,8 +1,14 @@
-FROM --platform=$BUILDPLATFORM debian:bookworm AS builder
+FROM debian:bookworm AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-ENV SOURCEURL=https://github.com/squid-cache/squid/archive/refs/tags/SQUID_6_14.tar.gz
+# SQUID_VERSION is the base of the image version: releases are tagged
+# v<SQUID_VERSION> with the underscore as a dot (6_14 -> v6.14), then
+# v6.14-N for later image changes. Upstream tags are SQUID_<major>_<minor>.
+# renovate: datasource=github-tags depName=squid-cache/squid extractVersion=^SQUID_(?<version>\d+_\d+)$ versioning=regex:^(?<major>\d+)_(?<minor>\d+)$
+ARG SQUID_VERSION=6_14
+
+ENV SOURCEURL=https://github.com/squid-cache/squid/archive/refs/tags/SQUID_${SQUID_VERSION}.tar.gz
 ENV LANGPACKURL=https://www.squid-cache.org/Versions/langpack/squid-langpack-20240307.tar.gz
 
 ENV builddeps=" \
@@ -93,11 +99,11 @@ RUN ./configure --prefix=/usr \
  && checkinstall -y -D --install=no --fstrans=no --requires="${requires}" \
         --pkgname="squid"
 
-FROM --platform=$BUILDPLATFORM debian:bookworm-slim
+FROM debian:bookworm-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-COPY --from=builder /build/squid_0-1_amd64.deb /tmp/squid.deb
+COPY --from=builder /build/squid_0-1_*.deb /tmp/squid.deb
 
 RUN apt update \
  && apt -qy install ca-certificates libssl3 /tmp/squid.deb \
